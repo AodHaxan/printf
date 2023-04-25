@@ -1,66 +1,107 @@
 #include "main.h"
 
-void print_buffer(char buffer[], int *buff_ind);
-
 /**
- * _printf - Printf function
- * @format: format.
- * Return: Printed chars.
+ * _printf - Custom printf function
+ * @format: format string
+ * Return: number of characters printed
  */
 int _printf(const char *format, ...)
 {
-	int i, printed = 0, printed_chars = 0;
-	int flags, width, precision, size, buff_ind = 0;
-	va_list list;
+	va_list args;
 	char buffer[BUFF_SIZE];
+	int buffer_index = 0, i, printed_chars = 0;
 
 	if (format == NULL)
 		return (-1);
 
-	va_start(list, format);
+	va_start(args, format);
 
-	for (i = 0; format && format[i] != '\0'; i++)
+	for (i = 0; format[i] != '\0'; i++)
 	{
 		if (format[i] != '%')
 		{
-			buffer[buff_ind++] = format[i];
-			if (buff_ind == BUFF_SIZE)
-				print_buffer(buffer, &buff_ind);
-			/* write(1, &format[i], 1);*/
-			printed_chars++;
+			buffer[buffer_index++] = format[i];
+			if (buffer_index == BUFF_SIZE)
+			{
+				print_buffer(buffer, &buffer_index);
+				printed_chars += BUFF_SIZE;
+			}
+			else
+			{
+				printed_chars++;
+			}
 		}
 		else
 		{
-			print_buffer(buffer, &buff_ind);
-			flags = get_flags(format, &i);
-			width = get_width(format, &i, list);
-			precision = get_precision(format, &i, list);
-			size = get_size(format, &i);
-			++i;
-			printed = handle_print(format, &i, list, buffer,
-				flags, width, precision, size);
-			if (printed == -1)
-				return (-1);
-			printed_chars += printed;
+			print_buffer(buffer, &buffer_index);
+			i++;
+			printed_chars += handle_print(format[i], args, buffer, &buffer_index);
 		}
 	}
 
-	print_buffer(buffer, &buff_ind);
-
-	va_end(list);
+	print_buffer(buffer, &buffer_index);
+	va_end(args);
 
 	return (printed_chars);
 }
 
 /**
- * print_buffer - Prints the contents of the buffer if it exist
- * @buffer: Array of chars
- * @buff_ind: Index at which to add next char, represents the length.
+ * handle_print - handles conversion and printing of format specifier
+ * @specifier: format specifier character
+ * @args: variable arguments list
+ * @buffer: buffer to print output to
+ * @buffer_index: current index in buffer
+ * Return: number of characters printed
  */
-void print_buffer(char buffer[], int *buff_ind)
+int handle_print(char specifier, va_list args, char buffer[], int *buffer_index)
 {
-	if (*buff_ind > 0)
-		write(1, &buffer[0], *buff_ind);
+	int width = 0, precision = 0;
+	int flags[5] = {0, 0, 0, 0, 0};
+	char *str;
+	int num;
+	int num_len;
+	char c;
 
-	*buff_ind = 0;
+	parse_flags(specifier, flags);
+	width = parse_width(args);
+	precision = parse_precision(args);
+
+	switch (specifier)
+	{
+		case 'c':
+			c = va_arg(args, int);
+			return (print_char(buffer, buffer_index, c, flags, width));
+		case 's':
+			str = va_arg(args, char *);
+			return (print_string(buffer, buffer_index, str, flags, width, precision));
+		case 'd':
+		case 'i':
+			num = va_arg(args, int);
+			num_len = num_len_int(num);
+			return (print_number(buffer, buffer_index, num, num_len, flags, width, precision));
+		case 'u':
+			num = va_arg(args, unsigned int);
+			num_len = num_len_uint(num);
+			return (print_number(buffer, buffer_index, num, num_len, flags, width, precision));
+		case 'o':
+			num = va_arg(args, unsigned int);
+			num_len = num_len_oct(num);
+			return (print_number(buffer, buffer_index, num, num_len, flags, width, precision));
+		case 'x':
+		case 'X':
+			num = va_arg(args, unsigned int);
+			num_len = num_len_hex(num);
+			return (print_number(buffer, buffer_index, num, num_len, flags, width, precision));
+		case 'p':
+			num = (unsigned long)va_arg(args, void *);
+			num_len = num_len_hex(num);
+			return (print_address(buffer, buffer_index, num, num_len, flags, width));
+		case '%':
+			return (print_percent(buffer, buffer_index, flags, width));
+		default:
+			return (print_error(buffer, buffer_index, specifier));
+	}
 }
+
+/**
+ * print_buffer - prints buffer to stdout
